@@ -12,11 +12,16 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@chainlink/contracts/src/v0.8/KeeperCompatible.sol";
 
+import "hardhat/console.sol";
 
-contract BullBear is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
+
+contract BullBear is ERC721, ERC721Enumerable, ERC721URIStorage, KeeperCompatibleInterface, Ownable {
     using Counters for Counters.Counter;
 
     Counters.Counter private _tokenIdCounter;
+
+    uint public /* immutable */ interval;
+    uint public lastTimeStamp;
 
     // IPFS URIs for the dynamic nft graphics/metadata.
     string[] bullUrisIpfs = [
@@ -30,7 +35,10 @@ contract BullBear is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
         "https://ipfs.io/ipfs/QmbKhBXVWmwrYsTPFYfroR2N7NAekAMxHUVg2CWks7i9qj?filename=simple_bear.json"
     ];
 
-    constructor() ERC721("Bull&Bear", "BBTK") {}
+    constructor(uint updateInterval) ERC721("Bull&Bear", "BBTK") {
+        interval = updateInterval;
+        lastTimeStamp = block.timestamp;
+    }
 
     function safeMint(address to) public {
         uint256 tokenId = _tokenIdCounter.current();
@@ -74,5 +82,18 @@ contract BullBear is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
+    }
+
+    function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory) {
+        upkeepNeeded = (block.timestamp -lastTimeStamp) > interval;
+    }
+
+    function performUpkeep(bytes calldata) external override {
+        if ((block.timestamp - lastTimeStamp) > interval) {
+            lastTimeStamp = block.timestamp;
+            console.log('performing upkeep');
+        } else {
+            console.log('interval is not up yet');
+        }
     }
 }
