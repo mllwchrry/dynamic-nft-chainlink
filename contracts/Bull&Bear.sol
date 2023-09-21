@@ -26,6 +26,8 @@ contract BullBear is ERC721, ERC721Enumerable, ERC721URIStorage, KeeperCompatibl
 
     int256 public currentPrice;
 
+    event TokensUpdated(string trend);
+
     // IPFS URIs for the dynamic nft graphics/metadata.
     string[] bullUrisIpfs = [
         "https://ipfs.io/ipfs/QmRXyfi3oNZCubDxiVFre3kLZ8XeGt6pQsnAQRZ7akhSNs?filename=gamer_bull.json",
@@ -56,6 +58,32 @@ contract BullBear is ERC721, ERC721Enumerable, ERC721URIStorage, KeeperCompatibl
         ) = pricefeed.latestRoundData();
         
         return price;
+    }
+
+    function setPriceFeed(address newFeed) public onlyOwner {
+        pricefeed = AggregatorV3Interface(newFeed);
+    }
+
+    function setInterval(uint256 newInterval) public onlyOwner {
+        interval = newInterval;
+    }
+
+    function updateAllTokenURIs(string memory trend) internal {
+        if (compareStrings('bull', trend)) {
+            for (uint i = 0; i < _tokenIdCounter.current(); i++) {
+                _setTokenURI(i, bullUrisIpfs[0]);
+            }
+        } else {
+            for (uint i = 0; i < _tokenIdCounter.current(); i++) {
+                _setTokenURI(i, bearUrisIpfs[0]);
+            }
+        }
+
+        emit TokensUpdated(trend);
+    }
+
+    function compareStrings(string memory a, string memory b) internal pure returns (bool) {
+        return (keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b)));
     }
 
     function safeMint(address to) public {
@@ -109,8 +137,16 @@ contract BullBear is ERC721, ERC721Enumerable, ERC721URIStorage, KeeperCompatibl
     function performUpkeep(bytes calldata /* performData */) external override {
         if ((block.timestamp - lastTimeStamp) > interval) {
             lastTimeStamp = block.timestamp;
-            currentPrice = getLatestPrice();
-            console.log('performing upkeep');
+            int latestPrice = getLatestPrice();
+            
+            if (latestPrice != currentPrice) {
+                if (latestPrice > currentPrice) {
+                    updateAllTokenURIs('bull');
+                } else {
+                    updateAllTokenURIs('bear');
+                }
+                currentPrice = latestPrice;
+            }
         } else {
             console.log('interval is not up yet');
         }
